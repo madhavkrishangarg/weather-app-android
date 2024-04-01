@@ -54,12 +54,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-//        var response: WeatherResponse? = null
-//        GlobalScope.launch {
-//            response = returnWeatherData(28.6519, 77.2315, "2022-01-01", "2022-01-02")
-//            Log.i("WeatherResponse", response.toString())
-//        }
-
         setContent {
             getWeatherData(37.7749, -122.4194, "2022-01-01", "2022-01-02")
             WeatherApp()
@@ -127,7 +121,6 @@ fun DatePickerButton() {
             val currentMonth = calendar.get(Calendar.MONTH)
             val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
 
-
             val datePickerDialog = DatePickerDialog(
                 context, { _, year, month, day ->
                     if (year >= 1940) {
@@ -193,7 +186,7 @@ fun DatePickerButton() {
                     GlobalScope.launch {
                         try {
                             weatherResponse.value = returnWeatherData(
-                                city.latitude, city.longitude, "2022-01-01", "2022-01-01"
+                                city.latitude, city.longitude, selectedDate.value, selectedDate.value
                             )
                             Log.i("WeatherResponse", "Weather information of ${city.name}")
                         } catch (e: Exception) {
