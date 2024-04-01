@@ -38,6 +38,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.*
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
 import retrofit2.Call
@@ -53,8 +54,15 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        var response: WeatherResponse? = null
+        GlobalScope.launch {
+            response = returnWeatherData(28.6519, 77.2315, "2022-01-01", "2022-01-02")
+            Log.i("WeatherResponse", response.toString())
+        }
+
         setContent {
             getWeatherData(37.7749, -122.4194, "2022-01-01", "2022-01-02")
+            WeatherApp()
         }
     }
 }
@@ -83,23 +91,56 @@ fun getWeatherData(
         })
 }
 
+//return the api response as a WeatherResponse object
+suspend fun returnWeatherData(
+    latitude: Double, longitude: Double, start_date: String, end_date: String
+): WeatherResponse {
+    val api = Retrofit.Builder().baseUrl("https://archive-api.open-meteo.com/v1/")
+        .addConverterFactory(GsonConverterFactory.create()).build().create(WeatherAPI::class.java)
+    return api.returnWeather(latitude, longitude, start_date, end_date, "temperature_2m").body()!!
+}
+
+@Preview
 @Composable
-fun printSelectedDate(selectedDate: String) {
-    Text(
-        text = "Selected Date: $selectedDate",
-        fontSize = 20.sp,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(16.dp)
-    )
+fun WeatherApp() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        DatePickerButton()
+        WeatherButtons()
+    }
 }
 
 @Composable
-fun DatePickerButton(onDateSelected: (String) -> Unit) {
+fun DatePickerButton() : String {
     val context = LocalContext.current
-
+    val selectedDate = remember { mutableStateOf("") }
     Button(
         onClick = {
-            // Implement DatePickerDialog logic here
+            val calendar = Calendar.getInstance()
+            val currentYear = calendar.get(Calendar.YEAR)
+            val currentMonth = calendar.get(Calendar.MONTH)
+            val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+
+            val datePickerDialog = DatePickerDialog(
+                context, { _, year, month, day ->
+                    if (year >= 1940) {
+                        selectedDate.value = "$day/${month + 1}/$year"
+                        Toast.makeText(context, selectedDate.value, Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(
+                            context, "Please select a date after 1940", Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }, currentYear, currentMonth, currentDay
+            )
+
+            datePickerDialog.datePicker.minDate = getMinDateInMillis()
+            datePickerDialog.show()
         }, modifier = Modifier
             .padding(16.dp)
             .fillMaxWidth()
@@ -108,6 +149,92 @@ fun DatePickerButton(onDateSelected: (String) -> Unit) {
             text = "Select Date", fontSize = 20.sp, textAlign = TextAlign.Center
         )
     }
+    printSelectedDate(selectedDate.value)
+    return selectedDate.value
+}
+
+private fun getMinDateInMillis(): Long {
+    val calendar = Calendar.getInstance()
+    calendar.set(Calendar.YEAR, 1940)
+    calendar.set(Calendar.MONTH, Calendar.JANUARY)
+    calendar.set(Calendar.DAY_OF_MONTH, 1)
+    return calendar.timeInMillis
+}
+
+// Print the date selected by the user
+@Composable
+fun printSelectedDate(selectedDate: String) {
+    Text(
+        text = "Selected Date: $selectedDate",
+        fontSize = 20.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth()
+    )
+}
+
+@Preview(device = "id:pixel_4a")
+@Composable
+fun PreviewDatePickerButton() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        DatePickerButton()
+    }
+}
+
+@Composable
+fun WeatherButtons() {
+    val cityList = listOf(
+        City("New York", 40.7128, -74.0060),
+        City("Los Angeles", 34.0522, -118.2437),
+        City("Chicago", 41.8781, -87.6298)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        cityList.forEach { city ->
+            Button(
+                onClick = {
+                    GlobalScope.launch {
+                        try {
+// Simulate API call delay
+                            getWeatherData(city.latitude, city.longitude, "2022-01-01", "2022-01-02")
+                            Log.i("WeatherResponse", "Weather information of ${city.name}")
+                        } catch (e: Exception) {
+                            // Handle errors if any
+                            Log.i("WeatherResponse", "Failed to get weather information")
+                        }
+
+                    }
+                }, modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "Get Weather of ${city.name}",
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
 }
 
 data class City(val name: String, val latitude: Double, val longitude: Double)
+
+@Preview
+@Composable
+fun PreviewWeatherButtons() {
+    WeatherButtons()
+}
