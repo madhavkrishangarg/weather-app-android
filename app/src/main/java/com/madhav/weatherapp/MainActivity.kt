@@ -54,11 +54,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        var response: WeatherResponse? = null
-        GlobalScope.launch {
-            response = returnWeatherData(28.6519, 77.2315, "2022-01-01", "2022-01-02")
-            Log.i("WeatherResponse", response.toString())
-        }
+//        var response: WeatherResponse? = null
+//        GlobalScope.launch {
+//            response = returnWeatherData(28.6519, 77.2315, "2022-01-01", "2022-01-02")
+//            Log.i("WeatherResponse", response.toString())
+//        }
 
         setContent {
             getWeatherData(37.7749, -122.4194, "2022-01-01", "2022-01-02")
@@ -97,6 +97,7 @@ suspend fun returnWeatherData(
 ): WeatherResponse {
     val api = Retrofit.Builder().baseUrl("https://archive-api.open-meteo.com/v1/")
         .addConverterFactory(GsonConverterFactory.create()).build().create(WeatherAPI::class.java)
+    Log.i("WeatherResponse", "Getting weather information")
     return api.returnWeather(latitude, longitude, start_date, end_date, "temperature_2m").body()!!
 }
 
@@ -110,13 +111,13 @@ fun WeatherApp() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        //update the date to get the weather data for a different date
         DatePickerButton()
-        WeatherButtons()
     }
 }
 
 @Composable
-fun DatePickerButton() : String {
+fun DatePickerButton() {
     val context = LocalContext.current
     val selectedDate = remember { mutableStateOf("") }
     Button(
@@ -126,10 +127,24 @@ fun DatePickerButton() : String {
             val currentMonth = calendar.get(Calendar.MONTH)
             val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
 
+
             val datePickerDialog = DatePickerDialog(
                 context, { _, year, month, day ->
                     if (year >= 1940) {
-                        selectedDate.value = "$day/${month + 1}/$year"
+                        // Format the date as yyyy-MM-dd
+                        if (month < 9){
+                            if (day < 10){
+                                selectedDate.value = "$year-0${month + 1}-0$day"
+                            } else {
+                                selectedDate.value = "$year-0${month + 1}-$day"
+                            }
+                        }else{
+                            if (day < 10){
+                                selectedDate.value = "$year-${month + 1}-0$day"
+                            } else {
+                                selectedDate.value = "$year-${month + 1}-$day"
+                            }
+                        }
                         Toast.makeText(context, selectedDate.value, Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(
@@ -138,20 +153,79 @@ fun DatePickerButton() : String {
                     }
                 }, currentYear, currentMonth, currentDay
             )
-
             datePickerDialog.datePicker.minDate = getMinDateInMillis()
             datePickerDialog.show()
         }, modifier = Modifier
             .padding(16.dp)
-            .fillMaxWidth()
+            .width(172.dp)
+            .height(64.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4))
     ) {
         Text(
             text = "Select Date", fontSize = 20.sp, textAlign = TextAlign.Center
         )
     }
-    printSelectedDate(selectedDate.value)
-    return selectedDate.value
+    Text(
+        text = "Selected Date: ${selectedDate.value}",
+        fontSize = 20.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+    )
+    Spacer(modifier = Modifier.height(36.dp))
+    val cityList = listOf(
+        City("New Delhi", 28.6139, 77.2090),
+        City("London", 51.5074, -0.1278),
+        City("New York", 40.7128, -74.0060),
+    )
+
+
+    val weatherResponse = remember { mutableStateOf<WeatherResponse?>(null) }
+    Column(
+        modifier = Modifier
+            .background(Color.White),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        cityList.forEach { city ->
+            Button(
+                onClick = {
+                    GlobalScope.launch {
+                        try {
+                            weatherResponse.value = returnWeatherData(
+                                city.latitude, city.longitude, "2022-01-01", "2022-01-01"
+                            )
+                            Log.i("WeatherResponse", "Weather information of ${city.name}")
+                        } catch (e: Exception) {
+                            // Handle errors if any
+                            Log.i("WeatherResponse", "Failed to get weather information")
+                        }
+
+
+                    }
+
+
+                }, modifier = Modifier
+                    .padding(8.dp)
+                    .width(300.dp)
+                    .height(64.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6AB7FF))
+            ) {
+                Text(
+                    text = "Get Weather of ${city.name}",
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        val minTemp = weatherResponse.value?.hourly?.temperature_2m?.minOrNull()
+        Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
+        val maxTemp = weatherResponse.value?.hourly?.temperature_2m?.maxOrNull()
+        Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
+    }
 }
+
 
 private fun getMinDateInMillis(): Long {
     val calendar = Calendar.getInstance()
@@ -174,6 +248,15 @@ fun printSelectedDate(selectedDate: String) {
     )
 }
 
+@Preview
+@Composable
+fun PreviewMinAndMaxTemp() {
+    val weatherResponse = WeatherResponse(
+        0, 0.0, Hourly(listOf(10.0, 20.0, 30.0), listOf("2022-01-01", "2022-01-02", "2022-01-03")),
+        HourlyUnits("Celsius", "Celsius"), 0.0, 0.0, "UTC", "UTC", 0
+    )
+}
+
 @Preview(device = "id:pixel_4a")
 @Composable
 fun PreviewDatePickerButton() {
@@ -189,13 +272,13 @@ fun PreviewDatePickerButton() {
 }
 
 @Composable
-fun WeatherButtons() {
+fun WeatherButtons(date: String = "2022-01-01") {
     val cityList = listOf(
+        City("New Delhi", 28.6139, 77.2090),
+        City("London", 51.5074, -0.1278),
         City("New York", 40.7128, -74.0060),
-        City("Los Angeles", 34.0522, -118.2437),
-        City("Chicago", 41.8781, -87.6298)
     )
-
+    val weatherResponse = remember { mutableStateOf<WeatherResponse?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -208,8 +291,9 @@ fun WeatherButtons() {
                 onClick = {
                     GlobalScope.launch {
                         try {
-// Simulate API call delay
-                            getWeatherData(city.latitude, city.longitude, "2022-01-01", "2022-01-02")
+                            weatherResponse.value = returnWeatherData(
+                                city.latitude, city.longitude, date, date
+                            )
                             Log.i("WeatherResponse", "Weather information of ${city.name}")
                         } catch (e: Exception) {
                             // Handle errors if any
@@ -217,6 +301,7 @@ fun WeatherButtons() {
                         }
 
                     }
+
                 }, modifier = Modifier
                     .padding(16.dp)
                     .fillMaxWidth()
@@ -228,13 +313,18 @@ fun WeatherButtons() {
                 )
             }
         }
+        val minTemp = weatherResponse.value?.hourly?.temperature_2m?.minOrNull()
+        Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
+        val maxTemp = weatherResponse.value?.hourly?.temperature_2m?.maxOrNull()
+        Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
     }
 }
+
 
 data class City(val name: String, val latitude: Double, val longitude: Double)
 
 @Preview
 @Composable
 fun PreviewWeatherButtons() {
-    WeatherButtons()
+    WeatherButtons("2022-01-01")
 }
