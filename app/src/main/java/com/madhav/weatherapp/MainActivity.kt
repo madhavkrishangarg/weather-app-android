@@ -114,6 +114,7 @@ fun WeatherApp() {
 fun DatePickerButton() {
     val context = LocalContext.current
     val selectedDate = remember { mutableStateOf("") }
+    var selectedDateCalendar = remember { mutableStateOf(Calendar.getInstance()) }
     Button(
         onClick = {
             val calendar = Calendar.getInstance()
@@ -125,19 +126,21 @@ fun DatePickerButton() {
                 context, { _, year, month, day ->
                     if (year >= 1940) {
                         // Format the date as yyyy-MM-dd
-                        if (month < 9){
-                            if (day < 10){
+                        if (month < 9) {
+                            if (day < 10) {
                                 selectedDate.value = "$year-0${month + 1}-0$day"
                             } else {
                                 selectedDate.value = "$year-0${month + 1}-$day"
                             }
-                        }else{
-                            if (day < 10){
+                        } else {
+                            if (day < 10) {
                                 selectedDate.value = "$year-${month + 1}-0$day"
                             } else {
                                 selectedDate.value = "$year-${month + 1}-$day"
                             }
                         }
+                        selectedDateCalendar.value = Calendar.getInstance()
+                        selectedDateCalendar.value.set(year, month, day)
                         Toast.makeText(context, selectedDate.value, Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(
@@ -148,7 +151,8 @@ fun DatePickerButton() {
             )
             datePickerDialog.datePicker.minDate = getMinDateInMillis()
             datePickerDialog.show()
-        }, modifier = Modifier
+        },
+        modifier = Modifier
             .padding(16.dp)
             .width(172.dp)
             .height(64.dp),
@@ -162,8 +166,7 @@ fun DatePickerButton() {
         text = "Selected Date: ${selectedDate.value}",
         fontSize = 20.sp,
         textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
     )
     Spacer(modifier = Modifier.height(36.dp))
     val cityList = listOf(
@@ -172,33 +175,80 @@ fun DatePickerButton() {
         City("New York", 40.7128, -74.0060),
     )
 
-
+    var minTemp by remember { mutableStateOf(0.0) };
+    var maxTemp by remember { mutableStateOf(0.0) };
     val weatherResponse = remember { mutableStateOf<WeatherResponse?>(null) }
     Column(
-        modifier = Modifier
-            .background(Color.White),
+        modifier = Modifier.background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         cityList.forEach { city ->
             Button(
                 onClick = {
-                    GlobalScope.launch {
-                        try {
-                            weatherResponse.value = returnWeatherData(
-                                city.latitude, city.longitude, selectedDate.value, selectedDate.value
-                            )
-                            Log.i("WeatherResponse", "Weather information of ${city.name}")
-                        } catch (e: Exception) {
-                            // Handle errors if any
-                            Log.i("WeatherResponse", "Failed to get weather information")
+                    if (selectedDateCalendar.value.after(Calendar.getInstance())) {
+                        GlobalScope.launch {
+                            try {
+                                var dateStr = "";
+                                for (i in 1..10) {
+                                    val date = selectedDateCalendar.value
+                                    date.add(Calendar.YEAR, -i)
+                                    if (date.get(Calendar.MONTH) < 9) {
+                                        if (date.get(Calendar.DAY_OF_MONTH) < 10) {
+                                            dateStr =
+                                                "${date.get(Calendar.YEAR)}-0${date.get(Calendar.MONTH) + 1}-0${
+                                                    date.get(Calendar.DAY_OF_MONTH)
+                                                }"
+                                        } else {
+                                            dateStr =
+                                                "${date.get(Calendar.YEAR)}-0${date.get(Calendar.MONTH) + 1}-${
+                                                    date.get(Calendar.DAY_OF_MONTH)
+                                                }"
+                                        }
+                                    } else {
+                                        if (date.get(Calendar.DAY_OF_MONTH) < 10) {
+                                            dateStr =
+                                                "${date.get(Calendar.YEAR)}-${date.get(Calendar.MONTH) + 1}-0${
+                                                    date.get(Calendar.DAY_OF_MONTH)
+                                                }"
+                                        } else {
+                                            dateStr =
+                                                "${date.get(Calendar.YEAR)}-${date.get(Calendar.MONTH) + 1}-${
+                                                    date.get(Calendar.DAY_OF_MONTH)
+                                                }"
+                                        }
+                                    }
+                                    val weather = returnWeatherData(
+                                        city.latitude, city.longitude, dateStr, dateStr
+                                    )
+                                    minTemp += weather.hourly.temperature_2m.minOrNull()!!
+                                    maxTemp += weather.hourly.temperature_2m.maxOrNull()!!
+                                }
+                                minTemp /= 10
+                                maxTemp /= 10
+                            } catch (e: Exception) {
+                                Log.i("WeatherResponse", "Failed to get weather information")
+                            }
                         }
+                    } else {
+                        GlobalScope.launch {
+                            try {
+                                weatherResponse.value = returnWeatherData(
+                                    city.latitude,
+                                    city.longitude,
+                                    selectedDate.value,
+                                    selectedDate.value
+                                )
+                                Log.i("WeatherResponse", "Weather information of ${city.name}")
+                            } catch (e: Exception) {
+                                // Handle errors if any
+                                Log.i("WeatherResponse", "Failed to get weather information")
+                            }
 
-
+                        }
                     }
-
-
-                }, modifier = Modifier
+                },
+                modifier = Modifier
                     .padding(8.dp)
                     .width(300.dp)
                     .height(64.dp),
@@ -211,11 +261,16 @@ fun DatePickerButton() {
                 )
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        val minTemp = weatherResponse.value?.hourly?.temperature_2m?.minOrNull()
-        Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
-        val maxTemp = weatherResponse.value?.hourly?.temperature_2m?.maxOrNull()
-        Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
+        Spacer (modifier = Modifier.height(24.dp))
+        if(weatherResponse.value != null) {
+            minTemp = weatherResponse.value?.hourly?.temperature_2m?.minOrNull()!!
+            Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
+            maxTemp = weatherResponse.value?.hourly?.temperature_2m?.maxOrNull()!!
+            Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
+        }else{
+            Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
+            Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
+        }
     }
 }
 
@@ -245,8 +300,15 @@ fun printSelectedDate(selectedDate: String) {
 @Composable
 fun PreviewMinAndMaxTemp() {
     val weatherResponse = WeatherResponse(
-        0, 0.0, Hourly(listOf(10.0, 20.0, 30.0), listOf("2022-01-01", "2022-01-02", "2022-01-03")),
-        HourlyUnits("Celsius", "Celsius"), 0.0, 0.0, "UTC", "UTC", 0
+        0,
+        0.0,
+        Hourly(listOf(10.0, 20.0, 30.0), listOf("2022-01-01", "2022-01-02", "2022-01-03")),
+        HourlyUnits("Celsius", "Celsius"),
+        0.0,
+        0.0,
+        "UTC",
+        "UTC",
+        0
     )
 }
 
