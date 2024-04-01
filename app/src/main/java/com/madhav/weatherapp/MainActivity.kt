@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+
 fun getWeatherData(
     latitude: Double, longitude: Double, start_date: String, end_date: String
 ) {
