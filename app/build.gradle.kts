@@ -79,6 +79,10 @@ dependencies {
     implementation("io.ktor:ktor-client-core:1.6.3")
     implementation("io.ktor:ktor-client-android:1.6.3")
     implementation("io.ktor:ktor-client-serialization:1.6.3")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.9.3")
+
 
 
 }
