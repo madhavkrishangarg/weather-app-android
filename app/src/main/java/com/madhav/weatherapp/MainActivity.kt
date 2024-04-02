@@ -51,6 +51,7 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 class MainActivity : AppCompatActivity() {
+    lateinit var WeatherDatabaseAccessObject: WeatherDatabaseAccessObject
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -98,6 +99,7 @@ suspend fun returnWeatherData(
 @Preview(device = "id:pixel_4a")
 @Composable
 fun WeatherApp() {
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -112,6 +114,9 @@ fun WeatherApp() {
 
 @Composable
 fun DatePickerButton() {
+    val weatherDatabaseClass =
+        WeatherDatabaseClass.DatabaseBuilder.getInstance(LocalContext.current)
+    val weatherDatabaseAccessObject = weatherDatabaseClass.weatherDAO()
     val context = LocalContext.current
     val selectedDate = remember { mutableStateOf("") }
     var selectedDateCalendar = remember { mutableStateOf(Calendar.getInstance()) }
@@ -193,8 +198,19 @@ fun DatePickerButton() {
                         weatherResponse.value = null
                         val selectedDateCalendar_copy =
                             selectedDateCalendar.value.clone() as Calendar
+//                        Log.i(selectedDate.value, "Selected Date")
                         GlobalScope.launch {
                             try {
+                                Log.i(selectedDate.value, "Selected Date Future Value")
+                                val weatherData = weatherDatabaseAccessObject.getWeatherData(
+                                    city.name, selectedDate.value
+                                )
+                                if (weatherData != null) {
+                                    minTemp = weatherData.min_temp
+                                    maxTemp = weatherData.max_temp
+                                    Log.i("Already Exists", "Weather data already exists")
+                                    return@launch
+                                }
                                 var dateStr = "";
                                 val date = selectedDateCalendar.value.clone() as Calendar
                                 var temp_min = 0.0
@@ -236,14 +252,32 @@ fun DatePickerButton() {
 //                                date= dateCopy
                                 minTemp = temp_min / 10
                                 maxTemp = temp_max / 10
+                                weatherDatabaseAccessObject.upsert(
+                                    WeatherDatabaseEntity(
+                                        null,
+                                        city.name,
+                                        minTemp,
+                                        maxTemp,
+                                        selectedDate.value
+                                    )
+                                )
                             } catch (e: Exception) {
                                 Log.i("WeatherResponse", "Failed to get weather information")
                             }
                         }
-                        selectedDateCalendar.value = selectedDateCalendar_copy
                     } else {
+
                         GlobalScope.launch {
                             try {
+                                val weatherData = weatherDatabaseAccessObject.getWeatherData(
+                                    city.name, selectedDate.value
+                                )
+                                if (weatherData != null) {
+                                    minTemp = weatherData.min_temp
+                                    maxTemp = weatherData.max_temp
+                                    Log.i("Already Exists", "Weather data already exists")
+                                    return@launch
+                                }
                                 Log.i(selectedDate.value, "Selected Date")
                                 Log.i(selectedDateCalendar.value.time.toString(), "Selected Date")
                                 weatherResponse.value = returnWeatherData(
@@ -253,6 +287,18 @@ fun DatePickerButton() {
                                     selectedDate.value
                                 )
                                 Log.i("WeatherResponse", "Weather information of ${city.name}")
+                                weatherDatabaseAccessObject.upsert(
+                                    WeatherDatabaseEntity(
+                                        null,
+                                        city.name,
+                                        weatherResponse.value?.hourly?.temperature_2m?.minOrNull()!!,
+                                        weatherResponse.value?.hourly?.temperature_2m?.maxOrNull()!!,
+                                        selectedDate.value
+                                    )
+                                )
+                                Log.i(
+                                    "Inserted into Database", "Weather data inserted into database"
+                                )
                             } catch (e: Exception) {
                                 // Handle errors if any
                                 Log.i("WeatherResponse", "Failed to get weather information")
