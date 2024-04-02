@@ -86,7 +86,6 @@ fun getWeatherData(
         })
 }
 
-//return the api response as a WeatherResponse object
 suspend fun returnWeatherData(
     latitude: Double, longitude: Double, start_date: String, end_date: String
 ): WeatherResponse {
@@ -96,7 +95,7 @@ suspend fun returnWeatherData(
     return api.returnWeather(latitude, longitude, start_date, end_date, "temperature_2m").body()!!
 }
 
-@Preview
+@Preview(device = "id:pixel_4a")
 @Composable
 fun WeatherApp() {
     Column(
@@ -125,7 +124,8 @@ fun DatePickerButton() {
 
             val datePickerDialog = DatePickerDialog(
                 context, { _, year, month, day ->
-                    if (year >= 1940) {
+                    //check that the selected date is after 1940
+                    if (year >= 1940 && year < 2026) {
                         // Format the date as yyyy-MM-dd
                         if (month < 9) {
                             if (day < 10) {
@@ -145,7 +145,9 @@ fun DatePickerButton() {
                         Toast.makeText(context, selectedDate.value, Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(
-                            context, "Please select a date after 1940", Toast.LENGTH_SHORT
+                            context,
+                            "Please select a date after 1940 and before 2026",
+                            Toast.LENGTH_SHORT
                         ).show()
                     }
                 }, currentYear, currentMonth, currentDay
@@ -178,7 +180,7 @@ fun DatePickerButton() {
 
     var minTemp by remember { mutableStateOf(0.0) };
     var maxTemp by remember { mutableStateOf(0.0) };
-    val weatherResponse = remember { mutableStateOf<WeatherResponse?>(null) }
+    var weatherResponse = remember { mutableStateOf<WeatherResponse?>(null) }
     Column(
         modifier = Modifier.background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -188,12 +190,17 @@ fun DatePickerButton() {
             Button(
                 onClick = {
                     if (selectedDateCalendar.value.after(Calendar.getInstance())) {
+                        weatherResponse.value = null
+                        val selectedDateCalendar_copy =
+                            selectedDateCalendar.value.clone() as Calendar
                         GlobalScope.launch {
                             try {
                                 var dateStr = "";
+                                val date = selectedDateCalendar.value.clone() as Calendar
+                                var temp_min = 0.0
+                                var temp_max = 0.0
                                 for (i in 1..10) {
-                                    val date = selectedDateCalendar.value
-                                    date.add(Calendar.YEAR, -i)
+                                    date.add(Calendar.YEAR, -1)
                                     if (date.get(Calendar.MONTH) < 9) {
                                         if (date.get(Calendar.DAY_OF_MONTH) < 10) {
                                             dateStr =
@@ -219,21 +226,26 @@ fun DatePickerButton() {
                                                 }"
                                         }
                                     }
+                                    Log.i(dateStr, "Date")
                                     val weather = returnWeatherData(
                                         city.latitude, city.longitude, dateStr, dateStr
                                     )
-                                    minTemp += weather.hourly.temperature_2m.minOrNull()!!
-                                    maxTemp += weather.hourly.temperature_2m.maxOrNull()!!
+                                    temp_min += weather.hourly.temperature_2m.minOrNull()!!
+                                    temp_max += weather.hourly.temperature_2m.maxOrNull()!!
                                 }
-                                minTemp /= 10
-                                maxTemp /= 10
+//                                date= dateCopy
+                                minTemp = temp_min / 10
+                                maxTemp = temp_max / 10
                             } catch (e: Exception) {
                                 Log.i("WeatherResponse", "Failed to get weather information")
                             }
                         }
+                        selectedDateCalendar.value = selectedDateCalendar_copy
                     } else {
                         GlobalScope.launch {
                             try {
+                                Log.i(selectedDate.value, "Selected Date")
+                                Log.i(selectedDateCalendar.value.time.toString(), "Selected Date")
                                 weatherResponse.value = returnWeatherData(
                                     city.latitude,
                                     city.longitude,
@@ -262,13 +274,13 @@ fun DatePickerButton() {
                 )
             }
         }
-        Spacer (modifier = Modifier.height(24.dp))
-        if(weatherResponse.value != null) {
+        Spacer(modifier = Modifier.height(24.dp))
+        if (weatherResponse.value != null) {
             minTemp = weatherResponse.value?.hourly?.temperature_2m?.minOrNull()!!
             Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
             maxTemp = weatherResponse.value?.hourly?.temperature_2m?.maxOrNull()!!
             Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
-        }else{
+        } else {
             Text(text = "Minimum Temperature: $minTemp", fontSize = 20.sp)
             Text(text = "Maximum Temperature: $maxTemp", fontSize = 20.sp)
         }
